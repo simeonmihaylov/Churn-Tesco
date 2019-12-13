@@ -1,0 +1,262 @@
+# Installing the libraries ----
+install.packages(
+  c(
+    "caret",
+    "rpart",
+    "rpart.plot",
+    "rminer",
+    "nnet",
+    "ggplot2",
+    "Amelia",
+    "caTools",
+    "dummies"
+  )
+)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rminer)
+library(nnet)
+library(ggplot2)
+library(Amelia)
+library(caTools)
+library(dummies)
+library(glmnet)
+library(tree)
+library(klaR)
+
+# Import the data ----
+
+set.seed(2635)
+
+setwd("D:\\School\\Master degree\\Saturday\\20191214 deadline _ Project\\Attempt2")
+churn.data <-
+  read.csv("Data.csv", na.strings = c("NA", "", " ", "  ", "   "))
+View(churn.data)
+str(churn.data)
+summary(churn.data)
+
+# Clean the data ----
+sum(duplicated(churn.data$customerID))
+
+churn.data = na.omit(churn.data)
+
+churn.data.clean = churn.data
+# replacing gender Male wth 1 and Female with 0
+churn.data.clean[, 2] = ifelse(churn.data.clean[, 2] == "Male", 1, 0)
+
+#replacing "Yes" "No" with 1,0
+churn.data.clean[, c(3, 4, 5, 7, 17)] = ifelse(churn.data.clean[, c(3, 4, 5, 7, 17)] == "Yes", 1, 0)
+
+#replacing "Yes" "No" "No internet service" with 1,0,3
+churn.data.clean[, c(10:15)] = ifelse(churn.data.clean[, c(10:15)] == "Yes",
+                                      1,
+                                      ifelse(churn.data.clean[, c(10:15)] == "No", 0, 3))
+#replacing "Yes" "No" "No phone service" with 1,0,3
+churn.data.clean[, 8] = ifelse(churn.data.clean[, 8] == "Yes",
+                               1,
+                               ifelse(churn.data.clean[, 8] == "No", 0, 3))
+#replacing DSL, Fiber optic, No with 10,11,3
+churn.data.clean[, 9] = ifelse(churn.data.clean[, 9] == "DSL",
+                               10,
+                               ifelse(churn.data.clean[, 9] == "Fiber optic", 11, 3))
+#replacing Month-to-month, One year, Two year with 30,12,24
+churn.data.clean[, 16] = ifelse(
+  churn.data.clean[, 16] == "Month-to-month",
+  30,
+  ifelse(churn.data.clean[, 16] == "One year", 12, 24)
+)
+#replacing (Electronic check, Mailed check, Bank transfer (automatic), Credit card (automatic))
+# with 111,112,113,114
+churn.data.clean[, 18] = ifelse(
+  churn.data.clean[, 18] == "Electronic check",
+  111,
+  ifelse(
+    churn.data.clean[, 18] == "Mailed check",
+    112,
+    ifelse(churn.data.clean[, 18] == "Bank transfer (automatic)", 113, 114)
+  )
+)
+
+churn.data.clean$Churn = ifelse(churn.data.clean$Churn == "Yes", 1, 0)
+
+# if there are missing values
+missmap(
+  churn.data,
+  col = c("Red", "White"),
+  x.cex = .8,
+  ylab = "Row Number",
+  y.cex = .3,
+  main = "Missing Churn Data",
+  rank.order = T,
+  y.labels = c(seq(1, 7100, by = 200)),
+  y.at = c(seq(1, 7100, by = 200))
+)
+
+
+# Churn analysis ----
+
+# CustomerID
+ggplot(churn.data.clean, aes(x = Churn)) +
+  geom_histogram(binwidth = 1, fill = c("Gray", "Red")) +
+  labs(title = "Centrycs' customers that churn", x = "Churn", y = "Frequency")
+
+# Tenure
+ggplot(churn.data.clean,
+       aes(x = churn.data.clean$tenure)) +
+  geom_histogram(color = "Gray",
+                 fill = "Red",
+                 binwidth = 1) +
+  labs(x = "Tenure", y = "Count", title = "Histogram of Tenure")
+mean(churn.data.clean$tenure)
+
+# Monthly charges
+ggplot(churn.data.clean,
+       aes(x = churn.data.clean$MonthlyCharges)) +
+  geom_histogram(color = "Gray",
+                 fill = "Red",
+                 binwidth = 1) +
+  labs(x = "Monthly charges", y = "Amount", title = "Histogram of Monthly charges")
+mean(churn.data.clean$MonthlyCharges)
+
+# Total charges - irrelevant due to non-understanding of the data;
+ggplot(churn.data.clean,
+       aes(x = churn.data.clean$TotalCharges)) +
+  geom_histogram(color = "Gray",
+                 fill = "Red",
+                 binwidth = 1) +
+  labs(x = "Total Charges", y = "Amount", title = "Histogram of Total Charges")
+mean(churn.data.clean$TotalCharges)
+
+# Model Building ----
+
+partner.dummies <- dummy(churn.data.clean$Partner, sep = "_")
+gender.dummies <- dummy(churn.data.clean$gender, sep = "_")
+dependents.dummies <- dummy(churn.data.clean$Dependents, sep = "_")
+#churn.data.clean1 <-
+#  cbind(churn.data,
+#        partner.dummies,
+#        gender.dummies,
+#        dependents.dummies)
+#View(churn.data.clean1)
+churn.data.clean <- churn.data.clean
+View(churn.data.clean)
+
+# Data partition 75 / 25 split
+
+View(churn.data.clean)
+str(churn.data.clean)
+churn.data.clean1 <- churn.data.clean[, c(2:21)]
+View(churn.data.clean1)
+
+
+inTrain <-
+  createDataPartition(y = churn.data.clean1$Churn, p = .75, list = FALSE)
+
+churn.train <- churn.data.clean1[inTrain, ]
+churn.test <- churn.data.clean1[-inTrain, ]
+
+# Model 1 Logistic regression ----
+
+churn.model <- glm(Churn ~ ., family = "binomial", churn.train)
+churn.model
+summary(churn.model)
+
+# Identify the best predictors
+
+confint(churn.model, level = .95)
+
+# Churn prediction
+
+churn.prediction <-
+  predict(churn.model, churn.test, type = "response")
+
+# Generate ROC curve
+
+model.AUC <- colAUC(churn.prediction, churn.test$Churn, plotROC = T)
+abline(h = model.AUC, col = "Red")
+text(.2,
+     .9,
+     cex = .8,
+     labels = paste("Optimal Cutoff:", round(model.AUC, 4)))
+
+# Convert probabilities to class
+
+churn.class <- ifelse(churn.prediction > 0.8456, 1, 0)
+
+# Transform back to factors for comparison
+
+churn.class <- factor(churn.class)
+churn.test$Churn <- factor(churn.test$Churn)
+
+# Confusion Matrix
+
+confusionMatrix(churn.class, churn.test$Churn)
+
+# Second Model neural network ----
+
+NNlog <- multinom(Churn ~ ., data = churn.train)
+summary(NNlog)
+
+# Model prediction
+
+churn.prediction2 <- predict(NNlog, churn.test)
+prediction.table <- table(churn.prediction2, churn.test$Churn)
+prediction.table
+
+# Correct classification
+
+sum(diag((prediction.table)) / sum(prediction.table))
+
+# Missclassification Rate
+
+1 - sum(diag((prediction.table)) / sum(prediction.table))
+
+# Third model decision trees ----
+
+# Load customer churn data set
+
+churn.data <-
+  read.csv("Data.csv", na.strings = c("NA", "", " ", "  ", "   "))
+churn.data$ChurnF <- factor(churn.data$Churn)
+
+# Partition data once again
+
+churn.data.partition <-
+  sample(2,
+         nrow(churn.data),
+         replace = TRUE,
+         prob = c(0.75, 0.25))
+churn.data.train <- churn.data[churn.data.partition == 1, ]
+churn.data.test <- churn.data[churn.data.partition == 2, ]
+
+# Build Decision Tree
+
+churn.data.tree <-
+  rpart(
+    churn.data.train$ChurnF ~ churn.data.train$customerID + churn.data.train$tenure +
+      churn.data.train$MonthlyCharges + churn.data.train$gender + churn.data.train$Partner
+  )
+
+summary(churn.data.tree)
+
+# Plot the decision tree
+
+windows()
+
+rpart.plot(churn.data.tree, extra = 4)
+
+# Churn prediction
+
+churn.data.tree.prediction <-
+  predict(churn.data.tree, churn.data.train, type = "class")
+
+# To check levels
+
+levels(churn.data.tree.prediction)
+
+levels(churn.data.test$ChurnF)
+
+# Confusion Matrix
+
+confusionMatrix(churn.data.tree.prediction, churn.data.train$ChurnF)
